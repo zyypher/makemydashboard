@@ -25,7 +25,7 @@ export default function SignupPage() {
   async function onGoogle() {
     setErr(null);
     setLoading(true);
-    await signIn("google", { callbackUrl: "/dashboard" });
+    await signIn("google", { callbackUrl: "/" });
     setLoading(false);
   }
 
@@ -52,7 +52,7 @@ export default function SignupPage() {
       email,
       password: pw,
       redirect: false,
-      callbackUrl: "/dashboard",
+      callbackUrl: "/",
     });
 
     setLoading(false);
@@ -62,7 +62,7 @@ export default function SignupPage() {
       return;
     }
 
-    router.push(login.url ?? "/dashboard");
+    router.push(login.url ?? "/");
   }
 
   return (
