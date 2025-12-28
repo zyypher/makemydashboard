@@ -12,6 +12,11 @@ import {
   Bell,
   Settings,
 } from "lucide-react";
+import Logo from "../images/logo";
+
+const BRAND = {
+  accent: "#8C57FF",
+};
 
 const nav = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -31,11 +36,16 @@ export default function Sidebar() {
         {/* Brand */}
         <div className="px-5 pt-5">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-500/90 shadow-[0_12px_40px_-16px_rgba(99,102,241,0.9)]">
-              <span className="text-lg font-bold">M</span>
+            <div
+              className="grid h-10 w-10 place-items-center rounded-xl shadow-[0_12px_40px_-16px_rgba(140,87,255,0.9)]"
+              style={{ backgroundColor: BRAND.accent }}
+            >
+              {/* Center + make it feel “bold” */}
+              <Logo className="h-6 w-6 text-white" />
             </div>
+
             <div className="leading-tight">
-              <div className="text-sm font-semibold">BuildMyDashboard</div>
+              <div className="text-sm font-semibold">Build My Dashboard</div>
               <div className="text-xs text-white/60">Console</div>
             </div>
           </div>
@@ -49,7 +59,8 @@ export default function Sidebar() {
 
           <nav className="mt-2 space-y-1">
             {nav.map((item) => {
-              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              const active =
+                item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
               const Icon = item.icon;
 
               return (
@@ -59,12 +70,28 @@ export default function Sidebar() {
                   className={[
                     "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition",
                     active
-                      ? "bg-indigo-500/20 text-white ring-1 ring-indigo-400/30"
+                      ? "text-white ring-1"
                       : "text-white/80 hover:bg-white/5 hover:text-white",
                   ].join(" ")}
+                  style={
+                    active
+                      ? {
+                          backgroundColor: "rgba(140,87,255,0.18)",
+                          borderColor: "rgba(140,87,255,0.35)",
+                        }
+                      : undefined
+                  }
                 >
-                  <Icon className={["h-4.5 w-4.5", active ? "text-indigo-300" : "text-white/70 group-hover:text-white"].join(" ")} />
+                  <Icon
+                    className={[
+                      "h-[18px] w-[18px]",
+                      active ? "" : "text-white/70 group-hover:text-white",
+                    ].join(" ")}
+                    style={active ? { color: "#CBB6FF" } : undefined}
+                  />
+
                   <span className="flex-1">{item.label}</span>
+
                   {item.label === "Dashboards" ? (
                     <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-semibold text-white">
                       5
@@ -86,7 +113,7 @@ export default function Sidebar() {
               pathname.startsWith("/settings") ? "bg-white/5 text-white" : "",
             ].join(" ")}
           >
-            <Settings className="h-4.5 w-4.5 text-white/70" />
+            <Settings className="h-[18px] w-[18px] text-white/70" />
             <span className="flex-1">Settings</span>
           </Link>
         </div>
