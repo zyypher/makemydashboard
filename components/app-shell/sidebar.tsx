@@ -37,15 +37,15 @@ export default function Sidebar() {
         <div className="px-5 pt-5">
           <div className="flex items-center gap-3">
             <div
-              className="grid h-10 w-10 place-items-center rounded-xl shadow-[0_12px_40px_-16px_rgba(140,87,255,0.9)]"
-              style={{ backgroundColor: BRAND.accent }}
-            >
-              {/* Center + make it feel “bold” */}
-              <Logo className="h-6 w-6 text-white" />
-            </div>
+  className="grid h-10 w-10 place-items-center rounded-xl shadow-[0_12px_40px_-16px_rgba(140,87,255,0.9)]"
+  style={{ backgroundColor: "#8C57FF", color: "white" }}
+>
+  <Logo className="h-6 w-6" />
+</div>
+
 
             <div className="leading-tight">
-              <div className="text-sm font-semibold">Build My Dashboard</div>
+              <div className="text-sm font-semibold">Make  My Dashboard</div>
               <div className="text-xs text-white/60">Console</div>
             </div>
           </div>
