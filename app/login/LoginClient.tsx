@@ -97,15 +97,26 @@ export default function LoginClient() {
               <CardContent className="space-y-5">
                 <Button
                   type="button"
-                  variant="outline"
-                  className="h-11 w-full justify-center gap-2"
                   onClick={onGoogle}
                   disabled={loading}
+                  className="
+                    h-11 w-full cursor-pointer justify-center gap-3
+                    border border-border bg-white text-foreground
+                    hover:bg-gray-50 active:bg-gray-100
+                    transition
+                  "
                 >
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-muted">
-                    G
+                  {/* Google logo */}
+                  <span className="flex h-5 w-5 items-center justify-center">
+                    <svg viewBox="0 0 48 48" className="h-5 w-5">
+                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.64 0 6.59 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                      <path fill="#4285F4" d="M46.5 24c0-1.64-.15-3.21-.43-4.73H24v9.02h12.7c-.55 2.88-2.17 5.32-4.6 6.97l7.05 5.48C43.97 36.29 46.5 30.68 46.5 24z" />
+                      <path fill="#FBBC05" d="M10.54 28.59c-.48-1.44-.76-2.97-.76-4.59s.27-3.15.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.98-6.19z" />
+                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.79l-7.05-5.48c-1.96 1.32-4.47 2.1-8.85 2.1-6.26 0-11.57-4.22-13.46-9.91l-7.98 6.19C6.59 42.62 14.64 48 24 48z" />
+                    </svg>
                   </span>
-                  Continue with Google
+
+                  <span className="font-medium">Continue with Google</span>
                 </Button>
 
                 <div className="flex items-center gap-3">
