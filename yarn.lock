@@ -629,7 +629,7 @@
 
 "@prisma/adapter-neon@^7.2.0":
   version "7.2.0"
-  resolved "https://registry.npmjs.org/@prisma/adapter-neon/-/adapter-neon-7.2.0.tgz"
+  resolved "https://registry.yarnpkg.com/@prisma/adapter-neon/-/adapter-neon-7.2.0.tgz#33a447fb7b9dd052440d2de0f69e4ee26f78e7c3"
   integrity sha512-XLTCQ0mDdaOqzBO99jyMOWBofJ5iqsvgWYB7lW+2ZEXvY6888tkeKfpo2VwdKhu1Cj/q4IqHd15eFQzPwbpjJQ==
   dependencies:
     "@neondatabase/serverless" ">0.6.0 <2"
