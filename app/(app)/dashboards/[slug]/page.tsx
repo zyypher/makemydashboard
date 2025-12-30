@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 
 export default async function DashboardDetailPage({
   params,
 }: {
   params: { slug: string };
 }) {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   const userId = (session as any)?.user?.id as string | undefined;
   if (!userId) redirect("/login");
 

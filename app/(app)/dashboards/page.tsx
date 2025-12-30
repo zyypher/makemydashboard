@@ -1,5 +1,7 @@
 // app/(app)/dashboards/page.tsx
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 import {
   Plus,
   LayoutDashboard,
@@ -13,6 +15,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 
 const BRAND = {
   accent: "#8C57FF",
@@ -20,43 +24,41 @@ const BRAND = {
 
 type DashboardItem = {
   id: string;
+  slug: string;
   name: string;
-  description: string;
-  source: "Google Sheets" | "Postgres" | "Shopify" | "GA4" | "CSV";
+  description: string | null;
+  source: "Google Sheets" | "Postgres" | "Shopify" | "GA4" | "CSV" | "Unknown";
   updatedAt: string;
   status: "Live" | "Draft";
   insights: number;
 };
 
-const dashboards: DashboardItem[] = [
-  {
-    id: "sales",
-    name: "Sales Overview",
-    description: "Revenue, orders, AOV, and performance trends.",
-    source: "Shopify",
-    updatedAt: "2h ago",
-    status: "Live",
-    insights: 4,
-  },
-  {
-    id: "support",
-    name: "Customer Support",
-    description: "Tickets, response time, SLA, and satisfaction.",
-    source: "Google Sheets",
-    updatedAt: "Yesterday",
-    status: "Live",
-    insights: 2,
-  },
-  {
-    id: "ops",
-    name: "Operations Pulse",
-    description: "Stock, logistics, fulfillment, and delivery health.",
-    source: "Postgres",
-    updatedAt: "3 days ago",
-    status: "Draft",
-    insights: 0,
-  },
-];
+function formatUpdatedAt(date: Date) {
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function mapSource(type?: string | null): DashboardItem["source"] {
+  switch (type) {
+    case "GOOGLE_SHEETS":
+      return "Google Sheets";
+    case "POSTGRES":
+    case "postgres":
+      return "Postgres";
+    case "SHOPIFY":
+      return "Shopify";
+    case "GA4":
+      return "GA4";
+    case "CSV":
+      return "CSV";
+    default:
+      return "Unknown";
+  }
+}
 
 function StatusPill({ status }: { status: DashboardItem["status"] }) {
   const isLive = status === "Live";
@@ -104,7 +106,43 @@ function InsightPill({ count }: { count: number }) {
   );
 }
 
-export default function DashboardsPage() {
+export default async function DashboardsPage() {
+  const session = await getServerSession(authOptions);
+  const userEmail = session?.user?.email;
+  if (!userEmail) redirect("/login");
+
+  const user = await prisma.user.findUnique({
+    where: { email: userEmail },
+    select: { id: true },
+  });
+
+  const dashboardsData = user
+    ? await prisma.dashboard.findMany({
+        where: { userId: user.id },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          description: true,
+          status: true,
+          updatedAt: true,
+          dataSources: { select: { type: true }, take: 1 },
+        },
+      })
+    : [];
+
+  const dashboards: DashboardItem[] = dashboardsData.map((d) => ({
+    id: d.id,
+    slug: d.slug,
+    name: d.name,
+    description: d.description ?? "No description",
+    source: mapSource(d.dataSources?.[0]?.type),
+    updatedAt: formatUpdatedAt(d.updatedAt),
+    status: d.status === "ACTIVE" ? "Live" : "Draft",
+    insights: 0,
+  }));
+
   const hasDashboards = dashboards.length > 0;
 
   return (

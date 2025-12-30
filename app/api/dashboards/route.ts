@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 
 function slugify(input: string) {
   return input
@@ -14,7 +15,7 @@ function slugify(input: string) {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   const userEmail = session?.user?.email;
 
   if (!userEmail) {
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   const userEmail = session?.user?.email;
 
   if (!userEmail) {

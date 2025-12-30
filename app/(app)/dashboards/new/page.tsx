@@ -93,8 +93,15 @@ export default function NewDashboardPage() {
         return;
       }
 
-      // Redirect to the created dashboard route (we’ll build this page next)
-      router.push(`/dashboards/${data.slug}`);
+      const slug = data?.dashboard?.slug ?? data?.slug;
+      if (!slug) {
+        setErr("Dashboard created but missing slug. Please refresh and try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Redirect to the created dashboard route
+      router.push(`/dashboards/${slug}`);
     } catch {
       setErr("Network error. Please try again.");
       setLoading(false);
