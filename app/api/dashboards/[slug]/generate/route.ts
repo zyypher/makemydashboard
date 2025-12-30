@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { previewPublicSheet } from "@/lib/googleSheetsPublic";
 
 type Mode = "PRIMARY" | "FIXED" | "MANAGED" | "FREE_TEXT" | "IGNORE";
 
@@ -15,7 +16,11 @@ type Model = {
     }>;
 };
 
-function buildLayoutSpec(input: { slug: string; dashboardName: string; model: Model }) {
+function buildLayoutSpec(input: {
+    slug: string;
+    dashboardName: string;
+    model: Model;
+}) {
     const { slug, dashboardName, model } = input;
 
     const primaryKey = model.primaryFieldKey;
@@ -24,7 +29,6 @@ function buildLayoutSpec(input: { slug: string; dashboardName: string; model: Mo
     const fixed = model.fields.filter((f) => f.mode === "FIXED").map((f) => f.key);
     const free = model.fields.filter((f) => f.mode === "FREE_TEXT").map((f) => f.key);
 
-    // Default columns for list table: primary + first few non-ignored fields
     const listColumns = [
         primaryKey,
         ...model.fields
@@ -32,13 +36,16 @@ function buildLayoutSpec(input: { slug: string; dashboardName: string; model: Mo
             .map((f) => f.key),
     ].slice(0, 6);
 
-    // Default form fields: primary + fixed + free text (ignore managed – those become dropdown refs later)
     const formFields = [
         primaryKey,
         ...model.fields
-            .filter((f) => f.key !== primaryKey && (f.mode === "FIXED" || f.mode === "FREE_TEXT"))
+            .filter(
+                (f) =>
+                    f.key !== primaryKey &&
+                    (f.mode === "FIXED" || f.mode === "FREE_TEXT" || f.mode === "MANAGED")
+            )
             .map((f) => f.key),
-    ].slice(0, 10);
+    ].slice(0, 12);
 
     const pages = [
         { key: "overview", title: "Overview", type: "OVERVIEW" },
@@ -49,7 +56,6 @@ function buildLayoutSpec(input: { slug: string; dashboardName: string; model: Mo
             type: "MANAGED_LIST",
             entity: m,
         })),
-        { key: "settings", title: "Settings", type: "SETTINGS_PLACEHOLDER" },
     ];
 
     return {
@@ -57,8 +63,8 @@ function buildLayoutSpec(input: { slug: string; dashboardName: string; model: Mo
         app: {
             slug,
             name: dashboardName,
-            logo: { mode: "AUTO_INITIAL" }, // user can upload later
-            theme: { mode: "DEFAULT" }, // user can change later
+            logo: { mode: "AUTO_INITIAL" },
+            theme: { mode: "DEFAULT" },
         },
         model: {
             primaryFieldKey: primaryKey,
@@ -75,14 +81,14 @@ function buildLayoutSpec(input: { slug: string; dashboardName: string; model: Mo
                 primaryKey,
                 searchKey: primaryKey,
             },
-            createForm: {
+            form: {
                 title: `Create ${dashboardName}`,
                 fields: formFields,
             },
         },
         notes: {
             generatedAt: new Date().toISOString(),
-            message: "Generated layout v1. Theme/logo can be customized later.",
+            message: "Generated layout v1 (DB mirror).",
         },
     };
 }
@@ -103,11 +109,12 @@ export async function POST(
     }
 
     const body = (await req.json().catch(() => null)) as
-        | { sourceId?: string; activate?: boolean }
+        | { sourceId?: string; activate?: boolean; importRows?: boolean }
         | null;
 
     const sourceId = String(body?.sourceId ?? "").trim();
     const activate = Boolean(body?.activate);
+    const importRows = body?.importRows !== false; // default true
 
     if (!sourceId) {
         return NextResponse.json({ ok: false, error: "sourceId is required" }, { status: 400 });
@@ -132,12 +139,11 @@ export async function POST(
 
     if (!model?.fields?.length || !model?.primaryFieldKey) {
         return NextResponse.json(
-            { ok: false, error: "Mapping not found. Please complete 'Describe data' first." },
+            { ok: false, error: "Mapping not found. Please complete Map fields first." },
             { status: 400 }
         );
     }
 
-    // Determine next version
     const last = await prisma.dashboardLayout.findFirst({
         where: { dashboardId: dashboard.id },
         orderBy: { version: "desc" },
@@ -152,7 +158,7 @@ export async function POST(
         model,
     });
 
-    // Save spec as new version
+    // Create layout (this layoutId becomes the import batch scope)
     const layout = await prisma.dashboardLayout.create({
         data: {
             dashboardId: dashboard.id,
@@ -163,6 +169,42 @@ export async function POST(
         },
         select: { id: true, version: true, status: true },
     });
+
+    // Import sheet rows -> AppRecord (DB mirror)
+    // IMPORTANT: Use createMany instead of upsert/transaction to avoid tx timeout (P2028)
+    if (importRows) {
+        const sheetUrlOrId = String(cfg.originalInput ?? cfg.sheetUrl ?? cfg.spreadsheetId ?? "").trim();
+
+        const sheetName = cfg.sheetName ? String(cfg.sheetName) : null;
+        const gid = cfg.gid ? String(cfg.gid) : null;
+
+        const preview = await previewPublicSheet({
+            sheetUrlOrId,
+            sheetName,
+            gid,
+            range: "A1:Z500",
+        });
+
+        const rows = (preview.rows ?? []).filter((r: any) => r && typeof r === "object");
+
+        // fresh layoutId => no need to upsert. bulk insert is fastest.
+        const data = rows.map((r: any, i: number) => ({
+            dashboardId: dashboard.id,
+            layoutId: layout.id,
+            sourceRow: i + 2, // row 2..N (row 1 header)
+            data: r,
+        }));
+
+        // Create in chunks to keep payload size sane
+        const chunkSize = 200;
+        for (let i = 0; i < data.length; i += chunkSize) {
+            // eslint-disable-next-line no-await-in-loop
+            await prisma.appRecord.createMany({
+                data: data.slice(i, i + chunkSize),
+                skipDuplicates: true,
+            });
+        }
+    }
 
     return NextResponse.json({
         ok: true,

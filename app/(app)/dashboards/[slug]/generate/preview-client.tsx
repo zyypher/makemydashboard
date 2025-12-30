@@ -167,7 +167,7 @@ export default function GeneratePreviewClient(props: {
             const res = await fetch(`/api/dashboards/${encodeURIComponent(slug)}/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sourceId, activate: true }),
+                body: JSON.stringify({ sourceId, activate: true, importRows: true }),
             });
 
             const json = await res.json().catch(() => null);

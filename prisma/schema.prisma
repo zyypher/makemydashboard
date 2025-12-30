@@ -52,6 +52,7 @@ model Dashboard {
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   dataSources      DataSource[]
   dashboardLayouts DashboardLayout[]
+  appRecords       AppRecord[]
 
   @@unique([userId, slug])
   @@index([userId])
@@ -84,12 +85,34 @@ model DashboardLayout {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  dashboard Dashboard  @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
-  source    DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  dashboard  Dashboard   @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  source     DataSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  appRecords AppRecord[]
 
   @@unique([dashboardId, version])
   @@index([dashboardId])
   @@index([sourceId])
+}
+
+model AppRecord {
+  id          String @id @default(cuid())
+  dashboardId String
+  layoutId    String
+
+  data      Json
+  sourceRow Int? // original sheet row index (optional)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dashboard Dashboard       @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  layout    DashboardLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+
+  @@unique([layoutId, sourceRow])
+  @@index([dashboardId])
+  @@index([layoutId])
+  @@index([deletedAt])
 }
 
 /**
