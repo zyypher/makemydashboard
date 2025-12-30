@@ -13,10 +13,9 @@ function extractSpreadsheetId(urlOrId: string): string | null {
   const s = String(urlOrId || "").trim();
   if (!s) return null;
 
-  // If it's already an ID
+  // Already an ID
   if (/^[a-zA-Z0-9-_]{20,}$/.test(s) && !s.includes("/")) return s;
 
-  // Typical URL: https://docs.google.com/spreadsheets/d/{ID}/edit#gid=0
   const m = s.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   return m?.[1] ?? null;
 }
@@ -27,23 +26,14 @@ function extractGid(url: string): string | null {
   return m?.[1] ?? null;
 }
 
-/**
- * Google "gviz/tq" returns JS like:
- *   google.visualization.Query.setResponse({...});
- * We strip it to get JSON.
- */
 function parseGvizResponse(text: string): any {
   const trimmed = text.trim();
-
-  // Find first "{" after setResponse(
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) {
     throw new Error("Unexpected GViz response format.");
   }
-
-  const jsonStr = trimmed.slice(start, end + 1);
-  return JSON.parse(jsonStr);
+  return JSON.parse(trimmed.slice(start, end + 1));
 }
 
 function gvizUrl(opts: {
@@ -51,7 +41,7 @@ function gvizUrl(opts: {
   sheet?: string | null;
   gid?: string | null;
   range?: string;
-  tq?: string; // query language
+  tq?: string;
 }) {
   const { spreadsheetId, sheet, gid, range, tq } = opts;
 
@@ -60,26 +50,59 @@ function gvizUrl(opts: {
   )}/gviz/tq`;
 
   const params = new URLSearchParams();
-  // Ask for JSON
   params.set("tqx", "out:json");
-
   if (sheet) params.set("sheet", sheet);
   if (gid) params.set("gid", gid);
-
-  // If range not provided, GViz returns whole sheet; we’ll usually provide a range
   if (range) params.set("range", range);
-
-  // Default: select everything
   params.set("tq", tq ?? "select *");
 
   return `${base}?${params.toString()}`;
+}
+
+function isGenericHeader(h: string) {
+  const s = String(h || "").trim();
+  if (!s) return true;
+
+  // "Column 1", "Column 2"
+  if (/^Column\s+\d+$/i.test(s)) return true;
+
+  // "A", "B", ... "Z", "AA", "AB"
+  if (/^[A-Z]{1,2}$/.test(s)) return true;
+
+  return false;
+}
+
+function isNonEmpty(v: any) {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string") return v.trim().length > 0;
+  return true;
+}
+
+/**
+ * Determine "effective width" of the data so we don't treat A..Z as real columns
+ * when only A..F has data.
+ */
+function computeEffectiveWidth(rawRows: any[][], maxCols: number) {
+  const sampleRows = rawRows.slice(0, 25);
+  let lastNonEmptyCol = -1;
+
+  for (let c = 0; c < maxCols; c++) {
+    for (let r = 0; r < sampleRows.length; r++) {
+      if (isNonEmpty(sampleRows[r]?.[c])) {
+        lastNonEmptyCol = Math.max(lastNonEmptyCol, c);
+        break;
+      }
+    }
+  }
+
+  return Math.max(0, lastNonEmptyCol + 1);
 }
 
 export async function previewPublicSheet(input: {
   sheetUrlOrId: string;
   sheetName?: string | null;
   gid?: string | null;
-  range?: string; // e.g. A1:Z50
+  range?: string;
 }): Promise<SheetsPreview> {
   const sheetUrlOrId = String(input.sheetUrlOrId || "").trim();
   const spreadsheetId = extractSpreadsheetId(sheetUrlOrId);
@@ -87,7 +110,7 @@ export async function previewPublicSheet(input: {
 
   const gid = input.gid ?? extractGid(sheetUrlOrId);
   const sheetName = input.sheetName ?? null;
-  const range = input.range ?? "A1:Z50";
+  const range = input.range ?? "A1:Z200";
 
   const url = gvizUrl({
     spreadsheetId,
@@ -98,11 +121,8 @@ export async function previewPublicSheet(input: {
   });
 
   const res = await fetch(url, {
-    // GViz sometimes blocks weird caching; keep it simple
     cache: "no-store",
-    headers: {
-      "User-Agent": "make-my-dashboard/1.0",
-    },
+    headers: { "User-Agent": "make-my-dashboard/1.0" },
   });
 
   if (!res.ok) {
@@ -124,7 +144,7 @@ export async function previewPublicSheet(input: {
   const cols = (table?.cols ?? []) as Array<{ label?: string; id?: string }>;
   const rows = (table?.rows ?? []) as Array<{ c?: Array<{ v?: any }> }>;
 
-  const headers = cols.map((c, idx) => {
+  const headersFromCols = cols.map((c, idx) => {
     const label = String(c?.label ?? "").trim();
     if (label) return label;
     const id = String(c?.id ?? "").trim();
@@ -132,30 +152,43 @@ export async function previewPublicSheet(input: {
     return `Column ${idx + 1}`;
   });
 
-  const rawRows: any[][] = rows.map((r) =>
+  const rawRowsAll: any[][] = rows.map((r) =>
     (r?.c ?? []).map((cell) => cell?.v ?? null)
   );
 
-  // Assume first row is headers if it looks like strings and headers are generic
-  // (Common with GViz + range that includes row 1 headers)
-  const firstRow = rawRows[0] ?? [];
-  const looksLikeHeaderRow =
-    firstRow.length > 0 &&
-    firstRow.every((v) => typeof v === "string" && String(v).trim().length > 0);
+  // ✅ Trim to only columns that have real data (fixes A/B/C showing)
+  const effectiveWidth = computeEffectiveWidth(rawRowsAll, headersFromCols.length);
+  const headersTrimmed =
+    effectiveWidth > 0 ? headersFromCols.slice(0, effectiveWidth) : headersFromCols;
+  const rawRows =
+    effectiveWidth > 0
+      ? rawRowsAll.map((rr) => rr.slice(0, effectiveWidth))
+      : rawRowsAll;
 
-  let effectiveHeaders = headers;
+  const firstRow = rawRows[0] ?? [];
+
+  const headersAreGeneric =
+    headersTrimmed.length > 0 && headersTrimmed.every(isGenericHeader);
+
+  // ✅ header row check: "most" cells non-empty strings
+  const nonEmptyCells = firstRow.filter((v) => typeof v === "string" && v.trim().length > 0)
+    .length;
+  const looksLikeHeaderRow =
+    firstRow.length > 0 && nonEmptyCells >= Math.max(1, Math.ceil(firstRow.length * 0.6));
+
+  let headers = headersTrimmed;
   let dataRows = rawRows;
 
-  // If GViz cols are generic but row1 is real headers, prefer row1 as headers
-  const headersAreGeneric = headers.every((h) => /^Column \d+$/.test(h));
   if (headersAreGeneric && looksLikeHeaderRow) {
-    effectiveHeaders = firstRow.map((v, i) => String(v || `Column ${i + 1}`));
+    headers = firstRow.map((v, i) =>
+      String(v || `Column ${i + 1}`).trim() || `Column ${i + 1}`
+    );
     dataRows = rawRows.slice(1);
   }
 
-  const objects = dataRows.slice(0, 25).map((r) => {
+  const objects = dataRows.slice(0, 50).map((r) => {
     const obj: Record<string, any> = {};
-    effectiveHeaders.forEach((h, i) => {
+    headers.forEach((h, i) => {
       obj[h] = r?.[i] ?? null;
     });
     return obj;
@@ -165,7 +198,7 @@ export async function previewPublicSheet(input: {
     spreadsheetId,
     gid,
     sheetName,
-    headers: effectiveHeaders,
+    headers,
     rows: objects,
     rawRows,
   };

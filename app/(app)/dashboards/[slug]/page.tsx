@@ -9,8 +9,8 @@ import {
   Database,
   ExternalLink,
   Info,
-  Sparkles,
   Wand2,
+  Sparkles,
 } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
@@ -87,10 +87,23 @@ export default async function DashboardDetailPage({ params }: Props) {
 
   const isConnected = Boolean(sheetSource);
 
+  const cfg = (sheetSource?.config ?? {}) as Record<string, any>;
+  const hasModel = Boolean(cfg?.model?.fields?.length); // new “product mapping”
+  const isMapped = isConnected && hasModel;
+
   const updatedAt =
     dashboard.updatedAt instanceof Date
       ? dashboard.updatedAt
       : new Date(dashboard.updatedAt);
+
+  // Step tones
+  const step2Tone: "success" | "brand" = isConnected ? "success" : "brand";
+  const step3Tone: "success" | "brand" | "neutral" = isMapped
+    ? "success"
+    : isConnected
+    ? "brand"
+    : "neutral";
+  const step4Tone: "brand" | "neutral" = isMapped ? "brand" : "neutral";
 
   return (
     <div className="space-y-6">
@@ -122,6 +135,13 @@ export default async function DashboardDetailPage({ params }: Props) {
               {isConnected ? "Connected" : "Not connected"}
             </Pill>
 
+            {isMapped ? (
+              <Pill tone="success">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Mapped
+              </Pill>
+            ) : null}
+
             {sheetSource ? <Pill>Google Sheets</Pill> : null}
           </div>
 
@@ -151,8 +171,8 @@ export default async function DashboardDetailPage({ params }: Props) {
           <Button
             className="h-10 gap-2"
             style={{ backgroundColor: BRAND.accent }}
-            disabled={!isConnected}
-            title={!isConnected ? "Connect data first" : undefined}
+            disabled={!isMapped}
+            title={!isMapped ? "Finish mapping first" : undefined}
           >
             <ExternalLink className="h-4 w-4" />
             Preview
@@ -166,13 +186,11 @@ export default async function DashboardDetailPage({ params }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone="success">1. Created</Pill>
             <span className="text-neutral-300">→</span>
-            <Pill tone={isConnected ? "success" : "brand"}>
-              2. Connect data
-            </Pill>
+            <Pill tone={step2Tone}>2. Connect data</Pill>
             <span className="text-neutral-300">→</span>
-            <Pill tone={isConnected ? "brand" : "neutral"}>3. Map fields</Pill>
+            <Pill tone={step3Tone}>3. Describe data</Pill>
             <span className="text-neutral-300">→</span>
-            <Pill>4. Generate layout</Pill>
+            <Pill tone={step4Tone}>4. Generate layout</Pill>
             <span className="text-neutral-300">→</span>
             <Pill>5. Publish</Pill>
           </div>
@@ -209,18 +227,30 @@ export default async function DashboardDetailPage({ params }: Props) {
                 Source: <span className="font-mono">{sheetSource?.name}</span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/dashboards/${slug}/map?sourceId=${sheetSource?.id}`}
-                >
-                  <Button
-                    className="h-10 gap-2"
-                    style={{ backgroundColor: BRAND.accent }}
+              <div className="flex flex-wrap items-center gap-2">
+                {!isMapped ? (
+                  <Link
+                    href={`/dashboards/${slug}/map?sourceId=${sheetSource?.id}`}
                   >
-                    Map fields
-                    <Wand2 className="h-4 w-4" />
-                  </Button>
-                </Link>
+                    <Button
+                      className="h-10 gap-2"
+                      style={{ backgroundColor: BRAND.accent }}
+                    >
+                      Describe your data
+                      <Wand2 className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link href={`/dashboards/${slug}/generate?sourceId=${sheetSource?.id}`}>
+                    <Button
+                      className="h-10 gap-2"
+                      style={{ backgroundColor: BRAND.accent }}
+                    >
+                      Generate layout
+                      <Sparkles className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                )}
 
                 <Link href={`/dashboards/${slug}/connect?type=sheets`}>
                   <Button variant="outline" className="h-10">
@@ -228,6 +258,16 @@ export default async function DashboardDetailPage({ params }: Props) {
                   </Button>
                 </Link>
               </div>
+
+              {isMapped ? (
+                <div className="text-xs text-neutral-500">
+                  Mapping saved. Next step is generating pages + sidebar based on your sheet.
+                </div>
+              ) : (
+                <div className="text-xs text-neutral-500">
+                  Next: tell us which fields are fixed choices vs managed lists vs free text.
+                </div>
+              )}
             </div>
           )}
         </CardContent>
