@@ -1,254 +1,292 @@
-// app/(app)/dashboards/new/page.tsx
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, Database, Sheet, BarChart3, Wand2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Database, LayoutDashboard, Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const BRAND = {
-  accent: "#8C57FF",
-};
+const BRAND = { accent: "#8C57FF" } as const;
 
-const sources = [
-  { key: "sheets", name: "Google Sheets", desc: "Fastest for MVP / clients", icon: Sheet },
-  { key: "postgres", name: "Postgres / Neon", desc: "Best for scalable data", icon: Database },
-  { key: "csv", name: "CSV Upload", desc: "Quick import for tests", icon: BarChart3 },
-];
+type SourceType = "google_sheets" | "postgres" | "shopify" | "ga4" | "csv";
+
+const SOURCES: Array<{
+  id: SourceType;
+  name: string;
+  desc: string;
+}> = [
+    { id: "google_sheets", name: "Google Sheets", desc: "Import a sheet & generate charts." },
+    { id: "postgres", name: "Postgres", desc: "Connect a database and model metrics." },
+    { id: "shopify", name: "Shopify", desc: "Sales, orders, AOV, cohorts." },
+    { id: "ga4", name: "GA4", desc: "Traffic, funnels, retention." },
+    { id: "csv", name: "CSV Upload", desc: "Quick start from a CSV file." },
+  ];
+
+function StepPill({ active, done, label }: { active?: boolean; done?: boolean; label: string }) {
+  return (
+    <div
+      className={[
+        "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
+        active ? "border-neutral-300 bg-white text-neutral-900" : "border-neutral-200 bg-neutral-50 text-neutral-600",
+      ].join(" ")}
+    >
+      {done ? (
+        <CheckCircle2 className="h-4 w-4" style={{ color: BRAND.accent }} />
+      ) : (
+        <span
+          className="grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold"
+          style={{
+            backgroundColor: active ? "rgba(140,87,255,0.12)" : "rgba(0,0,0,0.06)",
+            color: active ? BRAND.accent : "rgba(0,0,0,0.55)",
+          }}
+        >
+          {label.startsWith("1") ? "1" : label.startsWith("2") ? "2" : "3"}
+        </span>
+      )}
+      <span>{label.replace(/^\d\.\s*/, "")}</span>
+    </div>
+  );
+}
 
 export default function NewDashboardPage() {
+  const router = useRouter();
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [sourceType, setSourceType] = useState<SourceType>("google_sheets");
+
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const canNext = useMemo(() => {
+    if (step === 1) return name.trim().length >= 2;
+    if (step === 2) return Boolean(sourceType);
+    return true;
+  }, [step, name, sourceType]);
+
+  async function createDashboard() {
+    setErr(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/dashboards", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim(),
+          sourceType,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setErr(data?.error || "Failed to create dashboard.");
+        setLoading(false);
+        return;
+      }
+
+      // Redirect to the created dashboard route (we’ll build this page next)
+      router.push(`/dashboards/${data.slug}`);
+    } catch {
+      setErr("Network error. Please try again.");
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-2">
-          <Link
-            href="/dashboards"
-            className="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div
+            className="grid h-10 w-10 place-items-center rounded-xl"
+            style={{
+              backgroundColor: "rgba(140,87,255,0.12)",
+              border: "1px solid rgba(140,87,255,0.22)",
+              color: BRAND.accent,
+            }}
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to dashboards
-          </Link>
-
-          <div className="flex items-center gap-2">
-            <div
-              className="grid h-9 w-9 place-items-center rounded-xl"
-              style={{
-                backgroundColor: "rgba(140,87,255,0.12)",
-                border: "1px solid rgba(140,87,255,0.22)",
-                color: BRAND.accent,
-              }}
-            >
-              <Wand2 className="h-5 w-5" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-              Create a dashboard
-            </h1>
+            <LayoutDashboard className="h-5 w-5" />
           </div>
-
-          <p className="text-sm text-neutral-600">
-            Choose a data source and tell us what you want to track. We’ll generate a clean layout.
-          </p>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">New Dashboard</h1>
+            <p className="mt-1 text-sm text-neutral-600">
+              Create a dashboard in minutes — we’ll generate the layout after you connect data.
+            </p>
+          </div>
         </div>
 
-        <Button variant="outline" className="h-11">
-          Save draft
-        </Button>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Left column */}
-        <div className="space-y-4 lg:col-span-2">
-          {/* Step 1 */}
-          <Card className="border-neutral-200 shadow-sm">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-neutral-900">
-                    Step 1 — Dashboard details
-                  </div>
-                  <div className="mt-1 text-sm text-neutral-600">
-                    Name it clearly for the team (Sales, Support, Ops…).
-                  </div>
-                </div>
-
-                <span
-                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                  style={{
-                    backgroundColor: "rgba(140,87,255,0.12)",
-                    color: BRAND.accent,
-                    border: "1px solid rgba(140,87,255,0.22)",
-                  }}
-                >
-                  Required
-                </span>
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Dashboard name</Label>
-                  <Input id="name" placeholder="e.g. Sales Overview" className="h-11" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="slug">Slug</Label>
-                  <Input id="slug" placeholder="sales-overview" className="h-11" />
-                </div>
-
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="desc">Description</Label>
-                  <Input
-                    id="desc"
-                    placeholder="Short description for your team"
-                    className="h-11"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Step 2 */}
-          <Card className="border-neutral-200 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm font-semibold text-neutral-900">
-                Step 2 — Choose data source
-              </div>
-              <div className="mt-1 text-sm text-neutral-600">
-                Start with Sheets for MVP, then move to DB later.
-              </div>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-3">
-                {sources.map((s) => {
-                  const Icon = s.icon;
-                  return (
-                    <button
-                      key={s.key}
-                      type="button"
-                      className="group rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-[1px] hover:shadow-md"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div
-                          className="grid h-10 w-10 place-items-center rounded-xl"
-                          style={{
-                            backgroundColor: "rgba(140,87,255,0.12)",
-                            border: "1px solid rgba(140,87,255,0.22)",
-                            color: BRAND.accent,
-                          }}
-                        >
-                          <Icon className="h-5 w-5" />
-                        </div>
-
-                        <span className="text-[11px] font-semibold text-neutral-500">
-                          Select
-                        </span>
-                      </div>
-
-                      <div className="mt-3 text-sm font-semibold text-neutral-900">
-                        {s.name}
-                      </div>
-                      <div className="mt-1 text-xs text-neutral-600">{s.desc}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Step 3 */}
-          <Card className="border-neutral-200 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm font-semibold text-neutral-900">
-                Step 3 — What should it show?
-              </div>
-              <div className="mt-1 text-sm text-neutral-600">
-                Add a simple prompt. Later we’ll convert this into the dashboard layout.
-              </div>
-
-              <div className="mt-5 space-y-2">
-                <Label htmlFor="prompt">Prompt</Label>
-                <Input
-                  id="prompt"
-                  className="h-11"
-                  placeholder='e.g. "Show revenue, orders, AOV trends. Break down by region and product. Include weekly and monthly comparison."'
-                />
-                <p className="text-xs text-neutral-500">
-                  Tip: include timeframe + dimensions (region, product, channel) + KPIs.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right column */}
-        <div className="space-y-4">
-          <Card className="border-neutral-200 shadow-sm">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-2">
-                <div
-                  className="grid h-9 w-9 place-items-center rounded-xl"
-                  style={{
-                    backgroundColor: "rgba(140,87,255,0.12)",
-                    border: "1px solid rgba(140,87,255,0.22)",
-                    color: BRAND.accent,
-                  }}
-                >
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-neutral-900">Generate</div>
-                  <div className="text-xs text-neutral-600">Create a first layout</div>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-3 text-sm text-neutral-600">
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                  ✅ Creates sections + cards + charts structure
-                </div>
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                  ✅ Suggests KPIs and filters
-                </div>
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                  ✅ Gives a clean “dashboard-ready” layout
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <Button className="h-11 w-full" style={{ backgroundColor: BRAND.accent }}>
-                  Generate dashboard layout
-                </Button>
-                <Button variant="outline" className="mt-2 h-11 w-full">
-                  Preview only
-                </Button>
-              </div>
-
-              <p className="mt-3 text-xs text-neutral-500">
-                For now this is UI-only (dummy). Next we’ll connect it to your “create flow”.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-neutral-200 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm font-semibold text-neutral-900">Next steps</div>
-              <div className="mt-2 space-y-2 text-sm text-neutral-600">
-                <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2">
-                  <span>Connect source</span>
-                  <span className="text-xs text-neutral-500">Soon</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2">
-                  <span>Map columns</span>
-                  <span className="text-xs text-neutral-500">Soon</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2">
-                  <span>Share to users</span>
-                  <span className="text-xs text-neutral-500">Soon</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboards">
+            <Button variant="outline" className="h-10 gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          </Link>
+          {step < 3 ? (
+            <Button
+              className="h-10"
+              style={{ backgroundColor: BRAND.accent }}
+              disabled={!canNext || loading}
+              onClick={() => setStep((s) => (s === 1 ? 2 : 3))}
+            >
+              Continue
+            </Button>
+          ) : (
+            <Button
+              className="h-10 gap-2"
+              style={{ backgroundColor: BRAND.accent }}
+              disabled={loading || !canNext}
+              onClick={createDashboard}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Create Dashboard
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Steps */}
+      <div className="flex flex-wrap items-center gap-2">
+        <StepPill label="1. Basics" active={step === 1} done={step > 1} />
+        <StepPill label="2. Data Source" active={step === 2} done={step > 2} />
+        <StepPill label="3. Create" active={step === 3} />
+      </div>
+
+      {err ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {err}
+        </div>
+      ) : null}
+
+      {/* Step content */}
+      {step === 1 ? (
+        <Card className="border-neutral-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Dashboard basics</CardTitle>
+            <CardDescription>Name + description (you can change later)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Dashboard name</Label>
+              <Input
+                id="name"
+                className="h-11"
+                placeholder="e.g. Sales Overview"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <div className="text-xs text-neutral-500">Tip: keep it short — this becomes part of the URL.</div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="desc">Description (optional)</Label>
+              <Input
+                id="desc"
+                className="h-11"
+                placeholder="e.g. Revenue, orders, AOV, trends…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {step === 2 ? (
+        <Card className="border-neutral-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Choose a data source</CardTitle>
+            <CardDescription>Pick what you’ll import first (you can add more later)</CardDescription>
+          </CardHeader>
+
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {SOURCES.map((s) => {
+              const active = s.id === sourceType;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSourceType(s.id)}
+                  className={[
+                    "group flex items-start gap-3 rounded-2xl border p-4 text-left transition",
+                    active ? "bg-white" : "bg-neutral-50 hover:bg-white",
+                  ].join(" ")}
+                  style={
+                    active
+                      ? { borderColor: "rgba(140,87,255,0.35)", boxShadow: "0 12px 40px -28px rgba(140,87,255,0.45)" }
+                      : { borderColor: "rgba(0,0,0,0.10)" }
+                  }
+                >
+                  <div
+                    className="grid h-10 w-10 place-items-center rounded-xl"
+                    style={{
+                      backgroundColor: active ? "rgba(140,87,255,0.12)" : "rgba(0,0,0,0.05)",
+                      color: active ? BRAND.accent : "rgba(0,0,0,0.55)",
+                      border: active ? "1px solid rgba(140,87,255,0.22)" : "1px solid rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    <Database className="h-5 w-5" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-neutral-900">{s.name}</div>
+                    <div className="mt-1 text-xs text-neutral-600">{s.desc}</div>
+
+                    {active ? (
+                      <div
+                        className="mt-3 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                        style={{
+                          backgroundColor: "rgba(140,87,255,0.12)",
+                          color: BRAND.accent,
+                          border: "1px solid rgba(140,87,255,0.22)",
+                        }}
+                      >
+                        Selected
+                      </div>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {step === 3 ? (
+        <Card className="border-neutral-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Ready to create</CardTitle>
+            <CardDescription>We’ll create the dashboard in Draft mode, then you connect the data.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-neutral-700">
+            <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3">
+              <span className="text-neutral-500">Name</span>
+              <span className="font-semibold text-neutral-900">{name.trim() || "—"}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3">
+              <span className="text-neutral-500">Source</span>
+              <span className="font-semibold text-neutral-900">
+                {SOURCES.find((s) => s.id === sourceType)?.name || "—"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3">
+              <span className="text-neutral-500">Status</span>
+              <span className="font-semibold" style={{ color: BRAND.accent }}>
+                Draft
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
