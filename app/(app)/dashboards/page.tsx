@@ -224,7 +224,7 @@ export default async function DashboardsPage() {
                   </div>
 
                   <Link
-                    href={`/dashboards/${d.id}`}
+                    href={`/dashboards/${d.slug}`}
                     className="grid h-10 w-10 place-items-center rounded-xl border border-neutral-200 bg-white text-neutral-700 opacity-90 transition hover:opacity-100"
                     aria-label="Open dashboard"
                   >
@@ -251,7 +251,7 @@ export default async function DashboardsPage() {
                 </div>
 
                 <div className="mt-5 flex items-center gap-2">
-                  <Link href={`/dashboards/${d.id}`} className="flex-1">
+                  <Link href={`/dashboards/${d.slug}`} className="flex-1">
                     <Button variant="outline" className="h-10 w-full">
                       View
                     </Button>
